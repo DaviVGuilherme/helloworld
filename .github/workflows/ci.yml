@@ -1,0 +1,32 @@
+name: CI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+
+      - run: npm ci
+      - run: npm test
+
+      - name: Construir a imagem Docker
+        run: docker build --tag hello-world-node:ci .
+
+      - name: Verificar o endpoint no contêiner
+        run: |
+          docker run --detach --publish 127.0.0.1:3000:3000 --name hello-world hello-world-node:ci
+          trap 'docker rm --force hello-world >/dev/null' EXIT
+          response=$(curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 --max-time 5 http://127.0.0.1:3000/)
+          test "$response" = "hello world"
